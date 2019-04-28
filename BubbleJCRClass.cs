@@ -29,6 +29,9 @@ namespace Bubble {
         #region My own shit! Should NOT be used by Lua
         private BubbleState Parent;
         private Lua bstate => Parent.state;
+        private Dictionary<int, TJCRDIR> JCRDict = new Dictionary<int, TJCRDIR>();]
+        
+
 
 
         public JCR_Bubble(BubbleState fromparent) {
@@ -46,17 +49,68 @@ namespace Bubble {
                     local ok,rettab = xpcall(retf,BubbleCrash)
                     if ok then return rettab else return nil end
                 end
+
+                function JCR_Dir(file) return Bubble_JCR:Dir(file) end
+                function JCR_Free(id) Bubble_JCR:Free(id) end
+                function JCR_Has(id) return Bubble_JCR:Has(id) end
+                function JCR_GetError() return Bubble_JCR.GetError end
+                
+                function JCR_GetString(r,e)
+                       if type(r)=='string' and e==nill then
+                          return Bubble_JCR:GetString(-1,r)
+                       elseif type(r)=='number' and type(e)=='string' then
+                          return Bubble_JCR:GetString(r,e)
+                       else
+                          error('Invalid parameters for GetString')
+                       end
+                end
+
             ", "JCR Init chunk");
         }
 
         #endregion
 
         #region The actual API
+        public string GetError { get ; private set } = "";
+        public int Dir(string file) {
+            GetError = "";
+            var J = JCR6.Dir(file);
+            if (J == null) {
+                GetError = JCR6.JERROR;
+                return -1;
+            }
+            var i = 0;
+            while (JCRDict.ContainsKey(i)) i++;
+            JCRDict[i] = J;
+            return i;
+        }
+
+        public bool Has(int ret) => JCRDict.ContainsKey(ret);
+
+        public void Free(int res) {
+            GetError = "";
+            if (!JCRDict.ContainsKey(res)) { GetError = $"JCRDir #{res} doesn't exist, so it can't be freed!"; }
+            JCRDict.Remove(res);
+        }
+
+        public string GetString(int res, string entry) {
+            var JCR = Parent.JCR;
+            if (res >= 0) {
+                if (!JCRDict.ContainsKey(res)) { GetError = "JCRDir #{res} doesn't exist so cannot be loaded!"; return ""; }
+                JCR = JCRDict[res];
+            }
+            return JCR.LoadString(entry);
+        }
+
         public string EntryList(int res=-1, bool asmap=false) {
+            GetError = "";
             var sb = new StringBuilder("return {");
             var comma = false;
             var JCR = Parent.JCR;
-            // if (res>=0) JCR=Resources[res];
+            if (res >= 0) {
+                if (!JCRDict.ContainsKey(res)) { GetError = "JCRDir #{res} doesn't exist so cannot be listed out!"; return ""; }
+                JCR = JCRDict[res];
+            }
             foreach (TJCREntry e in JCR.Entries.Values) {
                 if (comma) sb.Append(", "); comma = true;
                 if (asmap) sb.Append($"[\"{e.Entry.ToUpper()}\"] = ");
