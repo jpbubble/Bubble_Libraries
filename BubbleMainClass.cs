@@ -1,10 +1,27 @@
+// Lic:
+// BubbleMainClass.cs
+// (c)  Jeroen Petrus Broks.
+// 
+// This Source Code Form is subject to the terms of the
+// Mozilla Public License, v. 2.0. If a copy of the MPL was not
+// distributed with this file, You can obtain one at
+// http://mozilla.org/MPL/2.0/.
+// Version: 19.04.28
+// EndLic
+
+
+#define BubbleDEBUG
+
 using System;
+using System.IO;
+using System.Text;
 using System.Diagnostics;
+using System.Collections.Generic;
 using TrickyUnits;
 using NLua;
 using UseJCR6;
 
-namespace Bubble{
+namespace Bubble {
 
     /// <summary>
     /// Callback used to generate errors. 
@@ -32,6 +49,10 @@ namespace Bubble{
             try {
                 bstate.DoString(@"-- Init me ;)
 
+                    function QErTrace(Err)
+                        return Err ..'\n\nTracebak:\n'..debug.traceback..'\n'
+                    end
+
                     sprintf = string.format
             
                     function BubbleVersion() return A_Bubble.Version end
@@ -51,12 +72,17 @@ namespace Bubble{
                     end
 
                     function Beep(f,d)
-                        if (!f) then A_Bubble:Beep() return end
+                        if (not f) then A_Bubble:Beep() return end
                         A_Bubble:XBeep(f,d or 250)
                     end
-            ");
+
+            ","BubbleMainAPICoreScript");
             } catch (Exception E) {
+#if BubbleDEBUG
+                CrashHandler("Main Script Error", E.Message, E.StackTrace);
+#else
                 CrashHandler("Main Script Error", E.Message, "");
+#endif
             }
         }
 
@@ -64,7 +90,7 @@ namespace Bubble{
 
     class BubbleState {
         internal Lua state = new Lua();
-        TJCRDIR JCR;
+        readonly public TJCRDIR JCR;
         public BubbleError MyError = delegate (string ct, string m, string trace) {
             Debug.WriteLine($"LUA ERROR!\n{m}");
             if (trace != "") Debug.WriteLine($"\n{trace}");
@@ -77,27 +103,138 @@ namespace Bubble{
             return script;
         }
 
-        public LuaFunction Use(string fuse) {
-            if (JCR.Exists($"{fuse}.lua")) {
+        public object Use(string fuse) {
+            if (JCR.Exists(fuse)) {
                 try {
-                    var script = JCR.LoadString($"{fuse}.lua");
+                    var script = JCR.LoadString(fuse);
                     script = PreprocessLua(script);
-                    return (LuaFunction)state.DoString(script,$"{fuse}.lua")[0];
+                    switch (qstr.ExtractExt(fuse).ToLower()) {
+                        case "lua": {
+                                var res = state.DoString(script, fuse);
+                                return res;
+                            }
+                        default:
+                            MyError("Bubble", $"I don't know how script {fuse} works", "");
+                            return null; // Will never be called, but C# can't tell!
+                    }
+                    
                 } catch (Exception e) {
+#if BubbleDEBUG
+                    MyError("Use Compile", e.Message, e.StackTrace);
+#else
                     MyError("Use Compile", e.Message, "");
+#endif
                     return null;
                 }
             }
-            MyError("Use Error","I was unable to locate '{fuse}' in Use request","");
+            MyError("Use Error",$"I was unable to locate '{fuse}' in Use request","");
             return null;
+        }
+
+        static int DSI = 0;
+        public object[] DoString(string command) {
+            var h = qstr.md5($"BubbleID:{DateTime.Now.ToString()}:{DSI}");
+            DSI++;
+            return state.DoString(command, $"BUBCALL:{h}");
         }
 
         public BubbleState(TJCRDIR J,BubbleError e=null) {
             state["A_Bubble"] = new BubbleMainAPI(this);
+            state["Bubble_JCR"] = new JCR_Bubble(this);
             JCR = J;
             if (e != null) MyError = e;
         }
+
+        
+    }
+
+    static class SBubble {
+        static Dictionary<string, BubbleState> States = new Dictionary<string, BubbleState>();
+        static TJCRDIR JCR;
+        static string JCRFile = qstr.Left(MKL.MyExe, MKL.MyExe.Length - 4) + ".Bubble.jcr";
+        static TGINI Identify;
+        static public BubbleError MyError = null;
+
+        static void ICrash(string E) {
+            Console.WriteLine(E);
+            if (Debugger.IsAttached) Console.ReadKey(true);
+            Environment.Exit(1);
+        }
+
+        static public void Init(string reqengine,BubbleError ErrorHandler=null) {
+            if (!File.Exists(JCRFile)) 
+                ICrash($"Cannot find required resource file: {JCRFile}");
+            try {
+                JCR = JCR6.Dir(JCRFile);
+                Identify = GINI.ReadFromLines(JCR.ReadLines("ID/BUBBLEID"));
+                if (JCR6.JERROR!="")
+					ICrash($"Error reading identification!\nJCR reported: {JCR6.JERROR}");
+                if (Identify.C("BubbleEngine") == "")
+                    ICrash("The resource JCR does not appear to be a valid BUBBLE application");
+                if (Identify.C("BubbleEngine") != reqengine)
+                    ICrash($"Wrong engine! The resource JCR appears to be for the BUBBLE {Identify.C("BubbleEngine")} engine, and this is the BUBBLE {reqengine} engine");
+            } catch (Exception E) {
+                ICrash($".NET says {E.Message}\nJCR6 says {JCR6.JERROR}\nAnyway, something's not right here!");
+            }
+            MyError = ErrorHandler;
+
+        }
+
+        static public string[] ResFiles {
+            get {
+                var Cnt = JCR.Entries.Count;
+                var ret = new string[Cnt];
+                var i = 0;
+                foreach(TJCREntry Ent in JCR.Entries.Values) {
+                    if (i>=Cnt) {
+                        Console.WriteLine("INTERAL ERROR! Entry overflow! Please report!");
+                        Environment.Exit(0);
+                    }
+                    ret[i] = Ent.Entry;
+                    i++;
+                }
+                if (i < Cnt) {
+                    Console.WriteLine("INTERNAL ERROR! Entry underrun! Please report!");
+                }                
+                return ret;
+            }
+        }
+
+        static public void NewState(string stateID,string scriptfile) {
+            var ns = new BubbleState(JCR, MyError);
+            States[stateID.ToUpper()] = ns;
+            ns.Use(scriptfile);
+        }
+
+        static public BubbleState State(string stateId) {
+            var s = stateId.ToUpper();
+            if (!States.ContainsKey(s))
+                MyError("Bubble", $"State \"{stateId}\" does not exist", "");
+            return States[s];
+        }
+
+        static public string StringArray2Lua(string[] a) {
+            var r = new StringBuilder("{");
+            var comma = false;
+            foreach(string s in a) {
+                if (comma) r.Append(", "); comma = true;
+                r.Append("\"");
+                for(int i = 0; i < s.Length; i++) {
+                    var c = (byte)(s[i]);
+                    if (c >= 32 && c < 126 && c != '\\' && c!='"')
+                        r.Append(s[i]);
+                    else
+                        r.Append('\\' + $"{qstr.Right($"00{c}", 3)}");
+                }
+                r.Append("\"");
+            }
+            r.Append("}");
+            return r.ToString();
+        }
+
+        
     }
 	
 }
+
 
