@@ -29,7 +29,7 @@ namespace Bubble {
         #region My own shit! Should NOT be used by Lua
         private BubbleState Parent;
         private Lua bstate => Parent.state;
-        private Dictionary<int, TJCRDIR> JCRDict = new Dictionary<int, TJCRDIR>();]
+        private Dictionary<int, TJCRDIR> JCRDict = new Dictionary<int, TJCRDIR>();
         
 
 
@@ -65,13 +65,43 @@ namespace Bubble {
                        end
                 end
 
+                function JCR_EntryExists(i,n)
+                    if (n) then 
+                       return Bubble_JCR:EntryExists(n,i)
+                    else
+                       return Bubble_JCR:EntryExists(i,-1)
+                    end
+                end
+
+                function JCR_InitNIL()
+                   NIL.Load([[
+                          class UseBubbleNIL
+                               get string NAME
+                                   return 'Bubble'
+                               end
+                               bool Exists(string file)
+                                 // print('check: '..file)
+                                 return Bubble_JCR:EntryExists(file,-1)
+                               end
+                               string Load(string file)
+                                 return JCR_GetString(file)
+                               end
+                               //void CONSTRUCTOR()
+                                  //print('Init NIL')
+                               //end
+                          end
+                          NIL.UseStuff=UseBubbleNIL.NEW()
+                   ]],'UseBubbleNIL') ()              
+                end
+
+
             ", "JCR Init chunk");
         }
 
         #endregion
 
         #region The actual API
-        public string GetError { get ; private set } = "";
+        public string GetError { get; private set; } = "";
         public int Dir(string file) {
             GetError = "";
             var J = JCR6.Dir(file);
@@ -108,7 +138,7 @@ namespace Bubble {
             var comma = false;
             var JCR = Parent.JCR;
             if (res >= 0) {
-                if (!JCRDict.ContainsKey(res)) { GetError = "JCRDir #{res} doesn't exist so cannot be listed out!"; return ""; }
+                if (!JCRDict.ContainsKey(res)) { GetError = $"JCRDir #{res} doesn't exist so cannot be listed out!"; return ""; }
                 JCR = JCRDict[res];
             }
             foreach (TJCREntry e in JCR.Entries.Values) {
@@ -122,6 +152,18 @@ namespace Bubble {
             sb.Append("}");
             //System.Console.WriteLine(sb.ToString()); //debug
             return sb.ToString();
+        }
+
+        public bool EntryExists(string fn,int res = -1) {
+            GetError = "";
+            //System.Console.WriteLine($"Checking for {fn} in resource {res}");
+            var JCR = Parent.JCR;
+            if (res >= 0) {
+                if (!JCRDict.ContainsKey(res)) { GetError = $"JCRExists #{res} doesn't exist so cannot be listed out!"; return false; }
+                JCR = JCRDict[res];
+            }
+            return JCR.Entries.ContainsKey(fn.ToUpper());
+
         }
         #endregion
     }

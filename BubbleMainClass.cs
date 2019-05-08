@@ -16,6 +16,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Diagnostics;
+using System.Reflection;
 using System.Collections.Generic;
 using TrickyUnits;
 using NLua;
@@ -44,10 +45,17 @@ namespace Bubble {
         private Lua bstate => Parent.state;
         private BubbleState Parent;
 
-        public BubbleMainAPI(BubbleState fromparent) {
+        public string NILScript => SBubble.NILScript;
+
+
+public BubbleMainAPI(BubbleState fromparent) {
             Parent = fromparent;
-            try {
+            try {                
                 bstate.DoString(@"-- Init me ;)
+
+                    function StartNIL()                       
+                       NIL = (loadstring or load)(A_Bubble.NILScript,'NIL')();
+                    end
 
                     function QErTrace(Err)
                         return Err ..'\n\nTracebak:\n'..debug.traceback..'\n'
@@ -76,7 +84,7 @@ namespace Bubble {
                         A_Bubble:XBeep(f,d or 250)
                     end
 
-            ","BubbleMainAPICoreScript");
+            ", "BubbleMainAPICoreScript");
             } catch (Exception E) {
 #if BubbleDEBUG
                 CrashHandler("Main Script Error", E.Message, E.StackTrace);
@@ -106,12 +114,16 @@ namespace Bubble {
         public object Use(string fuse) {
             if (JCR.Exists(fuse)) {
                 try {
-                    var script = JCR.LoadString(fuse);
-                    script = PreprocessLua(script);
+                    var script = JCR.LoadString(fuse);                    
                     switch (qstr.ExtractExt(fuse).ToLower()) {
                         case "lua": {
+                                script = PreprocessLua(script);
                                 var res = state.DoString(script, fuse);
                                 return res;
+                            }
+                        case "nil": {
+                                var ret = state.DoString($"return NIL.LoadString([[{script}]])()");
+                                return ret;
                             }
                         default:
                             MyError("Bubble", $"I don't know how script {fuse} works", "");
@@ -139,8 +151,13 @@ namespace Bubble {
         }
 
         public BubbleState(TJCRDIR J,BubbleError e=null) {
-            state["A_Bubble"] = new BubbleMainAPI(this);
-            state["Bubble_JCR"] = new JCR_Bubble(this);
+            state["A_Bubble"] = new BubbleMainAPI(this); 
+            state["Bubble_JCR"] = new JCR_Bubble(this); 
+            state["Bubble_Bank"] = new BubbleBank(this);
+            state.DoString(@"-- print('Start NIL')
+                             StartNIL()  -- print('NIL')
+                             JCR_InitNIL() -- print('JCR')
+                             ", "StartNIL");            
             JCR = J;
             if (e != null) MyError = e;
         }
@@ -154,11 +171,29 @@ namespace Bubble {
         static string JCRFile = qstr.Left(MKL.MyExe, MKL.MyExe.Length - 4) + ".Bubble.jcr";
         static TGINI Identify;
         static public BubbleError MyError = null;
+        static public string NILScript { get; private set; } = "error(\"'NIL.lua' was not properly loaded! Was it properly embedded in the VS project?\")\n";
 
         static void ICrash(string E) {
             Console.WriteLine(E);
             if (Debugger.IsAttached) Console.ReadKey(true);
             Environment.Exit(1);
+        }
+
+        static public void SetUpNIL() {
+            foreach (string name in Assembly.GetExecutingAssembly().GetManifestResourceNames()) {
+                if (name.EndsWith("NIL.lua", StringComparison.InvariantCultureIgnoreCase)) {
+                    //Console.WriteLine($"Emb>{name}");
+                    using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) {
+                        var QS = new QuickStream(stream);
+                        var b = QS.ReadBytes((int)QS.Size);
+                        NILScript = Encoding.Default.GetString(b);
+                        QS.Close();
+                        //Console.WriteLine(NILScript);
+                    }
+                    return;
+                }
+            }
+            MyError("Internal", "NIL.lua not found!", "N/A");
         }
 
         static public void Init(string reqengine,BubbleError ErrorHandler=null) {
@@ -177,7 +212,7 @@ namespace Bubble {
                 ICrash($".NET says {E.Message}\nJCR6 says {JCR6.JERROR}\nAnyway, something's not right here!");
             }
             MyError = ErrorHandler;
-
+            SetUpNIL();
         }
 
         static public string[] ResFiles {
