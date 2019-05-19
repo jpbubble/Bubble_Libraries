@@ -1,7 +1,7 @@
 // Lic:
 // BubbleBankClass.cs
 // Bank for Bubble
-// version: 19.05.09
+// version: 19.05.20
 // Copyright (C)  Jeroen P. Broks
 // This software is provided 'as-is', without any express or implied
 // warranty.  In no event will the authors be held liable for any damages
@@ -17,6 +17,7 @@
 // misrepresented as being the original software.
 // 3. This notice may not be removed or altered from any source distribution.
 // EndLic
+
 
 /* 
    This library will add banking to Bubble.
@@ -192,4 +193,5 @@ namespace Bubble {
     }
 
 }
+
 
