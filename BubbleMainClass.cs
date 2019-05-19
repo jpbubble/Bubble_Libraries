@@ -13,6 +13,8 @@
 
 #define BubbleDEBUG
 
+#define NewStateDEBUG
+
 using System;
 using System.IO;
 using System.Text;
@@ -49,6 +51,7 @@ namespace Bubble {
         public string NILScript => SBubble.NILScript;
 
 
+
 public BubbleMainAPI(BubbleState fromparent) {
             Parent = fromparent;
             try {                
@@ -56,6 +59,7 @@ public BubbleMainAPI(BubbleState fromparent) {
 
                     function StartNIL()                       
                        NIL = (loadstring or load)(A_Bubble.NILScript,'NIL')();
+                       if (not NIL) then BubbleCrash('NIL failed to load') end
                     end
 
                     function QErTrace(Err)
@@ -114,16 +118,19 @@ public BubbleMainAPI(BubbleState fromparent) {
 
         public object Use(string fuse) {
             if (JCR.Exists(fuse)) {
-                try {
-                    var script = JCR.LoadString(fuse);                    
+                try {                    
                     switch (qstr.ExtractExt(fuse).ToLower()) {
                         case "lua": {
+                                var script = JCR.LoadString(fuse);
                                 script = PreprocessLua(script);
                                 var res = state.DoString(script, fuse);
                                 return res;
                             }
                         case "nil": {
-                                var ret = state.DoString($"return NIL.LoadString([[{script}]])()");
+                                var l = $"local ok, ret = pcall( NIL.Use,'{fuse}')\nif not(ok) then BubbleCrash(ret) else return ret end";
+                                Debug.Print(l);
+                                var ret = state.DoString(l); //--state.DoString($"return NIL.LoadString([[{script}]])()");
+                                Debug.Print("Done");
                                 return ret;
                             }
                         default:
@@ -145,10 +152,16 @@ public BubbleMainAPI(BubbleState fromparent) {
         }
 
         static int DSI = 0;
-        public object[] DoString(string command) {
+        public object[] DoString(string command,string chunk="?") {
             var h = qstr.md5($"BubbleID:{DateTime.Now.ToString()}:{DSI}");
             DSI++;
-            return state.DoString(command, $"BUBCALL:{h}");
+            try {
+                if (chunk == "?") chunk = $"BUBCALL:{h}";
+                return state.DoString(command, chunk);
+            } catch (Exception e) {
+                MyError("DoString error", e.Message, "");
+                return null;
+            }
         }
 
         public BubbleState(TJCRDIR J,BubbleError e=null) {
@@ -160,23 +173,40 @@ public BubbleMainAPI(BubbleState fromparent) {
                              JCR_InitNIL() -- print('JCR')
                              ", "StartNIL");            
             JCR = J;
-            if (e != null) MyError = e;
+            if (e != null) MyError = e;            
         }
-
+        
         
     }
 
+    delegate void StateInit(string VM);
+    /*
+    struct StateInitStruct {
+        public StateInit func;
+        public string param;
+        public StateInitStruct(StateInit f,string p) { func = f;param = p; }
+    }
+    */
+
     static class SBubble {
         static Dictionary<string, BubbleState> States = new Dictionary<string, BubbleState>();
-        static TJCRDIR JCR;
+        static public TJCRDIR JCR { get; private set; }
         static string JCRFile = qstr.Left(MKL.MyExe, MKL.MyExe.Length - 4) + ".Bubble.jcr";
         static TGINI Identify;
         static public BubbleError MyError = null;
         static public string NILScript { get; private set; } = "error(\"'NIL.lua' was not properly loaded! Was it properly embedded in the VS project?\")\n";
+        static public string Title => Identify.C("Title");
+        static public string ID => Identify.C("BubbleID");
+        static public string IDDat(string tag) => Identify.C(tag);
+        static internal List<StateInit> AlwaysInit = new List<StateInit>();
+        static public void AddInit(StateInit s) => AlwaysInit.Add(s);
+        static public string RunMode => Identify.C("RunMode").ToUpper();
 
         static void ICrash(string E) {
             Console.WriteLine(E);
-            if (Debugger.IsAttached) Console.ReadKey(true);
+            Debug.WriteLine("ERROR!");
+            Debug.WriteLine(E);
+            //if (Debugger.IsAttached) Console.ReadKey(true);
             Environment.Exit(1);
         }
 
@@ -238,15 +268,75 @@ public BubbleMainAPI(BubbleState fromparent) {
 
         static public void NewState(string stateID,string scriptfile) {
             var ns = new BubbleState(JCR, MyError);
+#if NewStateDEBUG
+            Debug.WriteLine($"Create {stateID} -- file {scriptfile} ");
+#endif
             States[stateID.ToUpper()] = ns;
+            foreach (StateInit si in AlwaysInit) {
+#if NewStateDEBUG
+                Debug.WriteLine("Classimp");
+#endif
+                si(stateID);
+            }
+#if NewStateDEBUG
+            Debug.WriteLine("Script itself");
+#endif
             ns.Use(scriptfile);
         }
 
         static public BubbleState State(string stateId) {
             var s = stateId.ToUpper();
-            if (!States.ContainsKey(s))
-                MyError("Bubble", $"State \"{stateId}\" does not exist", "");
-            return States[s];
+            if (!States.ContainsKey(s.ToUpper())) {
+                MyError("Bubble Error", $"State \"{stateId}\" does not exist", "");
+                //throw new Exception($"State \"{stateId}\" does not exist");
+                return null;
+            }
+            return States[s.ToUpper()];
+        }
+
+        public static bool HaveState(string stateID) {
+            if (States==null) BubConsole.CError("Hey, I cannot check the existsance of a state when the states are nil!");
+            BubConsole.CSay($"Bubb: Checking state {stateID}!");
+            var ret = States.ContainsKey(stateID.ToUpper());
+            BubConsole.CSay($"Outcome {ret}");
+            return ret;
+        }
+        static public void KillState(string stateID) => States.Remove(stateID.ToUpper());
+        
+
+        static public void DoNIL(string stateID, string NILScript, string chunk = "NILSCRIPT") {
+            var bs = State(stateID);
+            try {
+                var Safe = new StringBuilder(1);
+                for (int i = 0; i < NILScript.Length; i++) {
+                    var c = NILScript[i];
+                    var b = (int)c;
+                    if (c == '[' || c == ']')
+                        //Safe.Append($"\\{b.ToString("D3")}");
+                        Safe.Append($"]]..'{c}'..[[");
+                    else
+                        Safe.Append(c);
+                }
+                //var s = $"local s,e = xpcall( NIL.LoadString,BubbleCrash,[[{NILScript}]],\"Translation: {chunk}\")\nif s then e() end";
+                /*
+                var s = $"local s,e = xpcall( NIL.LoadString,BubbleCrash,[[{ Safe.ToString() }]],\"Translation: {chunk}\")\nif s and (type(e)=='function') then e() end\n";
+                s += $"if type(e)=='string' then CSay('[NIL TRANSLATION RESULT]\\n'..e..'\\n[/NIL TRANSLATION RESULT]') else CSay('NIL Result is:'..type(e)) end\n";
+                s += $"for k,v in pairs(_G) do print(type(v),k,v) end"; // debug!
+                //*/
+                var s = $"local f=assert(NIL.LoadString([[{ Safe.ToString() }]],'Trans: {chunk}') ) f()";
+                //var s = $"print('<trans chunk={chunk}>'..NIL.Translate([[{Safe.ToString() }]])..'</trans>')\n"; // {s}"; // debug
+                Debug.WriteLine($"[DONIL chunk='{chunk}']\n{s}\n[/DONIL]");
+                bs.state.DoString(s, $"DoNIL(\"{stateID}\",<script>,\"{chunk}\"");
+                Debug.WriteLine("===");
+            } catch (Exception E) {
+                MyError("NIL quickrun error", E.Message, "");
+            }
+        }
+
+        static public string TraceLua(string stateID) {
+            if (!States.ContainsKey(stateID.ToUpper())) return $"Non-existent state: {stateID}";
+            var bs = State(stateID).state.DoString("return debug.traceback()","Traceback call")[0];
+            return (string)bs;
         }
 
         static public string StringArray2Lua(string[] a) {

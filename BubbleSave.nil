@@ -1,0 +1,108 @@
+// Bubble Save Class Glue script
+
+class ClassBubSave
+
+	get string WorkDir
+		return Bubble_Save.WorkDir;
+	end
+	
+	set string WorkDir
+		Bubble_Save.WorkDir = value;
+	end
+	
+	get string LastError
+		return Bubble_Save.LastError;
+	end
+	
+	bool SaveString(string str,string file,dontcrash)
+		Bubble_Save.SaveString(str,file,dontcrash==true)
+	end
+	
+	string LoadString(string file,dontcrash)
+		Bubble_Save.LoadString(file,dontcrash==true)
+	end
+
+
+	table StartJCRSave(string argfile)
+		table jcrmap
+		table jcrfake
+		table jcrmeta
+		string file		
+		bool hashed = true
+		file = argfile	
+		self.jcrmeta["__newindex"] = void(tb,string key, value)
+			if key=="" then return end
+			if value==SuperGlobal and type(SuperGlobal)=="table" and getmetatable(SuperGlobal) and Bubble_SuperGlobal
+				jcrmap[key] = "--#SuperGlobal#--\n"..Bubble_SuperGlobal.Serialize()
+				return
+			end
+			if key:upper()=="HASH" or key:upper()=="HASHED"
+				hashed = value!=nil and value!=false
+			end
+			if key:upper()=="BUBBLEID"
+				error("BUBBLEID is reserved")
+			end
+			if key:upper()=="CLOSE"
+				Bubble_Save:JCRStartSave()
+				for k,v in pairs(jcrmap)
+					Bubble_Save:JCRSave(k,v)
+				end
+				Bubble_Save:JCREndSave(file,hashed)
+				return
+			end			
+			jcrmap[key]=NIL.serialize("local saved = "..key,value).."\nreturn saved"
+		self.jcrmeta["__index"] = void(tb,key)
+			error("This object is write-only!")
+		end
+		setmetatable(jcrfake,jcrmeta)
+		return jcrfake
+	end
+	
+	table LoadFromJCR(string argfile, mustbehashed)
+		table jcrmap
+		table jcrfake
+		table jcrmeta
+		
+		self.jcrmeta["__index"] = var(tb,string key)
+			delegate f
+			#pure
+			f = assert((loadstring or load)(jcrmap[key]),argfile.."::"..key)
+			#endpure
+			return f
+		end
+		
+		self.jcrmeta["__newindex"] = void()
+			error("Load table is read-only")
+		end
+		
+		bool prefixed(s,p)
+			return s:sub(s,1,#p)==p
+		end
+		
+		Bubble_Save:JCRStartLoad(argfile,mustbehashed==true)
+		repeat
+			var k
+			string v
+			k = Bubble_Save:JCRLoadNext()
+			if k=="" then break end
+			v = Bubble_Save:JCRLoadGet(k);
+			if self.prefixed(v,"--#SuperGlobal#--\n") then
+				#pure
+				(loadstring or load)(v)()
+				#endpure
+			else
+				jcrmap[k] = Bubble_Save:JCRLoadGet(k);
+			end
+		forever
+		Bubble_Save:CloseLoad();
+		
+		setmetatable(jcrfake,jcrmeta)
+		return jcrfake
+	end
+end
+
+
+#accept BubSave
+#pure
+BubSave = ClassBubSave.NEW()
+#endpure
