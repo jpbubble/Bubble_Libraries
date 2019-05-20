@@ -12,6 +12,7 @@
 
 
 
+
 #define BubbleDEBUG
 
 #define NewStateDEBUG
@@ -370,6 +371,7 @@ public BubbleMainAPI(BubbleState fromparent) {
     }
 	
 }
+
 
 
 
