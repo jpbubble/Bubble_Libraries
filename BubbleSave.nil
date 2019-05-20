@@ -51,7 +51,9 @@ class ClassBubSave
 		bool hashed = true
 		file = argfile	
 		self.jcrmeta["__newindex"] = void(tb,string key, value)
-			if key=="" then return end
+			if key=="" then 
+				return 
+			end
 			if value==SuperGlobal and type(SuperGlobal)=="table" and getmetatable(SuperGlobal) and Bubble_SuperGlobal
 				jcrmap[key] = "--#SuperGlobal#--\n"..Bubble_SuperGlobal.Serialize()
 				return
@@ -69,8 +71,9 @@ class ClassBubSave
 				end
 				Bubble_Save:JCREndSave(file,hashed)
 				return
-			end			
+			end
 			jcrmap[key]=NIL.serialize("local saved = "..key,value).."\nreturn saved"
+		end
 		self.jcrmeta["__index"] = void(tb,key)
 			error("This object is write-only!")
 		end
@@ -104,7 +107,9 @@ class ClassBubSave
 			var k
 			string v
 			k = Bubble_Save:JCRLoadNext()
-			if k=="" then break end
+			if k=="" then 
+				break 
+			end
 			v = Bubble_Save:JCRLoadGet(k);
 			if self.prefixed(v,"--#SuperGlobal#--\n") then
 				#pure

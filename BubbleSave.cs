@@ -44,9 +44,12 @@ namespace Bubble {
             get {
                 if (_wdir == "") {
                     _wdir = Dirry.C($"$Home$/.BubbleHome/{SBubble.ID}");
-                    if (SBubble.IDDat("Home") != "") _wdir = Dirry.AD(SBubble.IDDat("Home")).Replace("\\", "/");
+                    if (SBubble.BGC("BubbleHome") != "")
+                        _wdir = Dirry.AD(SBubble.BGC("BubbleHome"));
+                    else if (SBubble.IDDat("Home") != "")
+                        _wdir = Dirry.AD(SBubble.IDDat("Home")).Replace("\\", "/");                    
                 }
-                return _wdir;
+                return _wdir.Replace('\\','/');
             }
             set {
                 _wdir = Dirry.AD(value).Replace("\\", "/");

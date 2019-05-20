@@ -202,6 +202,9 @@ public BubbleMainAPI(BubbleState fromparent) {
         static internal List<StateInit> AlwaysInit = new List<StateInit>();
         static public void AddInit(StateInit s) => AlwaysInit.Add(s);
         static public string RunMode => Identify.C("RunMode").ToUpper();
+        static TGINI BubbleGlobalConfig = new TGINI();
+        static public string BGC(string tag) => BubbleGlobalConfig.C(tag);
+        static public string[] BGCList(string tag) => BubbleGlobalConfig.List(tag).ToArray();
 
         static void ICrash(string E) {
             Console.WriteLine(E);
@@ -229,6 +232,10 @@ public BubbleMainAPI(BubbleState fromparent) {
         }
 
         static public void Init(string reqengine,BubbleError ErrorHandler=null) {
+            var globconfigfile = Dirry.C("$Home$/.Tricky__ApplicationSupport/Bubble_GlobalConfig.GINI").Replace('\\','/');
+            if (File.Exists(globconfigfile)) {
+                BubbleGlobalConfig = GINI.ReadFromFile(globconfigfile);
+            }
             if (!File.Exists(JCRFile)) 
                 ICrash($"Cannot find required resource file: {JCRFile}");
             try {
