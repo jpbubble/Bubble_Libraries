@@ -46,15 +46,22 @@ namespace Bubble {
                 if (_wdir == "") {
                     _wdir = Dirry.C($"$Home$/.BubbleHome/{SBubble.ID}");
                     if (SBubble.BGC("BubbleHome") != "")
-                        _wdir = Dirry.AD(SBubble.BGC("BubbleHome"));
+                        _wdir = Dirry.AD($"{SBubble.BGC("BubbleHome")}/{SBubble.ID}");
                     else if (SBubble.IDDat("Home") != "")
-                        _wdir = Dirry.AD(SBubble.IDDat("Home")).Replace("\\", "/");                    
+                        _wdir = Dirry.AD($"{SBubble.IDDat("Home")}").Replace("\\", "/");                    
                 }
                 return _wdir.Replace('\\','/');
             }
             set {
                 _wdir = Dirry.AD(value).Replace("\\", "/");
             }
+        }
+
+        public bool Exists(string afile) {
+            var file = WorkDir; if (qstr.Right(file, 1) != "/") file += "/"; file += afile;
+            var d = qstr.ExtractDir(file);
+            var s = file.Split('/'); foreach (string dps in s) if (dps == "..") { SBubble.MyError("File check error", "I don't accept file names with .. references in the path!", d); return false; }
+            return File.Exists(file);
         }
 
         public bool SaveString(string str, string afile, bool dontcrash) {
@@ -64,13 +71,13 @@ namespace Bubble {
                 var d = qstr.ExtractDir(file);
                 var s = file.Split('/'); foreach (string dps in s) if (dps == "..") throw new Exception("I don't accept file names with .. references in the path!");
                 Directory.CreateDirectory(d);
-                QuickStream.SaveString(afile, str);
+                QuickStream.SaveString(file, str);
                 return true;
             } catch (Exception error) {
                 var s = str;
                 if (s.Length > 10) s = $"{qstr.Left(s, 4)}..{qstr.Right(s, 4)}";
                 LastError = $"BubSave.SaveString(\"{str}\",\"{afile}\"): {error.Message}";
-                if (!dontcrash) SBubble.MyError("Runtime error", LastError, SBubble.TraceLua(stateID));
+                if (!dontcrash) SBubble.MyError("Runtime error", LastError, SBubble.TraceLua(stateID)); else BubConsole.CError(LastError);
                 return false;
             }
         }
@@ -84,7 +91,7 @@ namespace Bubble {
                 return QuickStream.LoadString(file);
             } catch (Exception er) {
                 LastError = $"BubSave.LoadString(\"{afile}\"): {er.Message}";
-                if (!dontcrash) SBubble.MyError("Runtime error", LastError, SBubble.TraceLua(stateID));
+                if (!dontcrash) SBubble.MyError("Runtime error", LastError, SBubble.TraceLua(stateID)); else BubConsole.CError(LastError); 
                 return "";
             }
         }
