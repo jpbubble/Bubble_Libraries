@@ -91,7 +91,7 @@ class ClassBubSave
 		table jcrfake
 		table jcrmeta
 		
-		self.jcrmeta["__index"] = var(tb,string key)
+		jcrmeta["__index"] = var(tb,string key)
 			delegate f
 			#pure
 			f = assert((loadstring or load)(jcrmap[key]),argfile.."::"..key)
@@ -99,7 +99,7 @@ class ClassBubSave
 			return f
 		end
 		
-		self.jcrmeta["__newindex"] = void()
+		jcrmeta["__newindex"] = void()
 			error("Load table is read-only")
 		end
 		
