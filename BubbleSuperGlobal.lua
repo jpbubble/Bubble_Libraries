@@ -22,16 +22,19 @@ misrepresented as being the original software.
 SuperGlobal = {}
 local META = {}
 
+local function SERIALIZE()
+	return Bubble_Serialize:Serialize()
+end
 
-
-function META.__index(t,k)    
+function META.__index(t,k) 
+	if k:upper()=="SERIALIZE" then return SERIALIZE end
 	local r = Bubble_SuperGlobal:GetGlob(k)
 	local t = Bubble_SuperGlobal:GetType(k)
 	local ret
 	if t=="boolean" then
 		ret = r:lower() == "true"
 	elseif t=="number" then
-		ret = tonumber(r)
+		ret = tonumber(r) or 0
 	else
 		ret = r
 	end

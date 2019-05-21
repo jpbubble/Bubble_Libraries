@@ -18,6 +18,7 @@
 // 3. This notice may not be removed or altered from any source distribution.
 // EndLic
 
+#undef superglobcalldebug
 
 using System;
 using System.Text;
@@ -27,13 +28,21 @@ using TrickyUnits;
 namespace Bubble {
     class BubbleSuperGlobal {
 
-        Dictionary<string, string> globs = new Dictionary<string, string>();
-        Dictionary<string, string> types = new Dictionary<string, string>();
+        static Dictionary<string, string> globs = new Dictionary<string, string>();
+        static Dictionary<string, string> types = new Dictionary<string, string>();
         public bool strict = false;
 
         public string GetGlob(string v) {
             if (qstr.Prefixed(v, "#")) throw new Exception("# not allowed in var calling!");
-            if (!globs.ContainsKey(v)) return "nil";
+            if (!globs.ContainsKey(v)) {
+#if superglobcalldebug
+                BubConsole.CSay($"Asked: {v}!");
+                foreach(string key in globs.Keys) {
+                    BubConsole.WriteLine($"{key}\t = {globs[key]}",255,180,0);
+                }
+#endif
+                return "nil";
+            }
             return globs[v];
         }
 
@@ -84,6 +93,7 @@ namespace Bubble {
                     }
                     break;
             }
+            BubConsole.CSay($"Defined SuperGlobal: {k} = {v}");
             globs[k] = v;
         }
 
