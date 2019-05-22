@@ -6,8 +6,9 @@
 // Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at
 // http://mozilla.org/MPL/2.0/.
-// Version: 19.05.20
+// Version: 19.05.22
 // EndLic
+
 
 
 
@@ -305,9 +306,9 @@ public BubbleMainAPI(BubbleState fromparent) {
 
         public static bool HaveState(string stateID) {
             if (States==null) BubConsole.CError("Hey, I cannot check the existsance of a state when the states are nil!");
-            BubConsole.CSay($"Bubb: Checking state {stateID}!");
+            //BubConsole.CSay($"Bubb: Checking state {stateID}!");
             var ret = States.ContainsKey(stateID.ToUpper());
-            BubConsole.CSay($"Outcome {ret}");
+            //BubConsole.CSay($"Outcome {ret}");
             return ret;
         }
         static public void KillState(string stateID) => States.Remove(stateID.ToUpper());
@@ -371,6 +372,7 @@ public BubbleMainAPI(BubbleState fromparent) {
     }
 	
 }
+
 
 
 
