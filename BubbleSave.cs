@@ -128,7 +128,7 @@ namespace Bubble {
                 foreach (string ename in JCRSaved.Keys) {
                     var str = JCRSaved[ename];
                     if (hashed) hashtable[ename] = qstr.md5(str);
-                    j.AddString(str, ename);
+                    j.AddString(str, ename,storage);
                 }
                 if (hashed) j.NewStringMap(hashtable, "HASHES", storage);
                 j.Close();
@@ -165,9 +165,9 @@ namespace Bubble {
                     JCRLoadHashes = JCRLoaded.LoadStringMap("Hashes");
             } catch (Exception e) {
                 if (JCR6.JERROR != "" && JCR6.JERROR.ToUpper() != "OK") {
-                    SBubble.MyError("JCR6 Error during loading", JCR6.JERROR, $"Resulted to .NET Crash:\n\n{e.Message}");
+                    SBubble.MyError("JCR6 Error during loading (start)", JCR6.JERROR, $"Resulted to .NET Crash:\n\n{e.Message}");
                 } else {
-                    SBubble.MyError(".NET Error during loading", e.Message, "");
+                    SBubble.MyError(".NET Error during loading (start)", e.Message, "");
                 }
                 JCRLoaded = null;
             }
@@ -179,7 +179,7 @@ namespace Bubble {
                 if (JCRLoadedIndex >= JCRLoadedList.Length) return ""; // end of list reached
                 ret = JCRLoadedList[JCRLoadedIndex];
                 JCRLoadedIndex++;
-            } while (ret == "HASHES"); // reserved names must be skipped
+            } while (ret == "HASHES" || ret == "BUBBLEID"); // reserved names must be skipped
             return ret;
         }
         public string JCRLoadGet(string entry) {
@@ -187,6 +187,9 @@ namespace Bubble {
             try {
                 var ret = JCRLoaded.LoadString(entry);
                 if (JCRLoadedWantHash) {
+                    if (!JCRLoadHashes.ContainsKey(entry.ToUpper())){
+                        throw new Exception($"No hash found for {entry}! One is required! Corrupted data?");
+                    }
                     if (qstr.md5(ret) != JCRLoadHashes[entry.ToUpper()]) {
                         throw new Exception("Hash mismatch? Currupted data?");
                     }
@@ -194,9 +197,9 @@ namespace Bubble {
                 return ret;
             } catch (Exception e) {
                 if (JCR6.JERROR != "" && JCR6.JERROR.ToUpper() != "OK") {
-                    SBubble.MyError("JCR6 Error during loading", JCR6.JERROR, $"Resulted to .NET Crash:\n\n{e.Message}");
+                    SBubble.MyError("JCR6 Error during loading (get)", JCR6.JERROR, $"Resulted to .NET Crash:\n\n{e.Message}");
                 } else {
-                    SBubble.MyError(".NET Error during loading", e.Message, "");
+                    SBubble.MyError(".NET Error during loading (get)", e.Message, "");
                 }
                 JCRLoaded = null;
                 return "";
