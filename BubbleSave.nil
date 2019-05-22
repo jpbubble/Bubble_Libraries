@@ -20,6 +20,7 @@
 
 
 
+
 // Bubble Save Class Glue script
 
 class ClassBubSave
@@ -105,7 +106,7 @@ class ClassBubSave
 		end
 		
 		bool prefixed(s,p)
-			return s:sub(s,1,#p)==p
+			return s:sub(1,#p)==p
 		end
 		
 		Bubble_Save:JCRStartLoad(argfile,mustbehashed==true)
@@ -117,7 +118,7 @@ class ClassBubSave
 				break 
 			end
 			v = Bubble_Save:JCRLoadGet(k);
-			if self.prefixed(v,"--#SuperGlobal#--\n") then
+			if prefixed(v,"--#SuperGlobal#--\n") then
 				#pure
 				(loadstring or load)(v)()
 				#endpure
@@ -125,7 +126,7 @@ class ClassBubSave
 				jcrmap[k] = Bubble_Save:JCRLoadGet(k);
 			end
 		forever
-		Bubble_Save:CloseLoad();
+		Bubble_Save:JCRLoadClose();
 		
 		setmetatable(jcrfake,jcrmeta)
 		return jcrfake
@@ -137,6 +138,7 @@ end
 #pure
 BubSave = ClassBubSave.NEW()
 #endpure
+
 
 
 
