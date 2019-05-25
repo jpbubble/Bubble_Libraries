@@ -18,6 +18,7 @@
  * This class is "mandadory", and all Bubble projects will therefore include it!
  */
 
+using System;
 using System.Text;
 using System.Collections.Generic;
 using NLua;
@@ -30,7 +31,7 @@ namespace Bubble {
         #region My own shit! Should NOT be used by Lua
         private BubbleState Parent;
         private Lua bstate => Parent.state;
-        private Dictionary<int, TJCRDIR> JCRDict = new Dictionary<int, TJCRDIR>();
+        private Dictionary<int, TJCRDIR> JCRDict = new Dictionary<int, TJCRDIR>();        
         
 
 
@@ -125,12 +126,17 @@ namespace Bubble {
         }
 
         public string GetString(int res, string entry) {
-            var JCR = Parent.JCR;
-            if (res >= 0) {
-                if (!JCRDict.ContainsKey(res)) { GetError = "JCRDir #{res} doesn't exist so cannot be loaded!"; return ""; }
-                JCR = JCRDict[res];
+            try {
+                var JCR = Parent.JCR;
+                if (res >= 0) {
+                    if (!JCRDict.ContainsKey(res)) { GetError = "JCRDir #{res} doesn't exist so cannot be loaded!"; return ""; }
+                    JCR = JCRDict[res];
+                }
+                return JCR.LoadString(entry);
+            } catch (Exception e){
+                SBubble.MyError($"JCR_GetString({res},\"{entry}\")", "Fetching the string failed!", $".NET reported: {e.Message}\nJCR6 reported: {JCR6.JERROR}\n\n");
+                return "ERROR!";
             }
-            return JCR.LoadString(entry);
         }
 
         public string EntryList(int res=-1, bool asmap=false) {
