@@ -6,8 +6,9 @@
 // Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at
 // http://mozilla.org/MPL/2.0/.
-// Version: 19.05.22
+// Version: 19.06.01
 // EndLic
+
 
 
 
@@ -38,12 +39,12 @@ namespace Bubble {
     /// <param name="message">Error message itself</param>
     /// <param name="trace">Tranceback (if applicable)</param>
     delegate void BubbleError(string ct, string message, string trace);
-	
-	// This class is only meant to provide the links between Lua and 
-	// BUBBLE, and it should only be used that way!
-	internal class BubbleMainAPI{
-		
-		public string Version => MKL.Newest;
+
+    // This class is only meant to provide the links between Lua and 
+    // BUBBLE, and it should only be used that way!
+    internal class BubbleMainAPI {
+
+        public string Version => MKL.Newest;
         public void ForeColor(byte b) => Console.ForegroundColor = (ConsoleColor)b;
         public void BackColor(byte b) => Console.BackgroundColor = (ConsoleColor)b;
         public void CrashHandler(string ct, string message, string trace) => Parent.MyError(ct, message, trace);
@@ -54,11 +55,24 @@ namespace Bubble {
 
         public string NILScript => SBubble.NILScript;
 
+        public long MilliToday {
+            get {
+                long ret = 0;
+                long[] mul = new long[] { 1, 1000, 60, 60 };
+                DateTime dt = DateTime.Now;
+                long[] units = new long[] { dt.Millisecond, dt.Second, dt.Minute, dt.Hour };
+                long umul = 1;
+                for (int i = 0; i < mul.Length; i++) {
+                    umul *= mul[i];
+                    ret += umul * units[i];
+                }
+                return ret;
+            }
+        }
 
-
-public BubbleMainAPI(BubbleState fromparent) {
+        public BubbleMainAPI(BubbleState fromparent) {
             Parent = fromparent;
-            try {                
+            try {
                 bstate.DoString(@"-- Init me ;)
 
                     function StartNIL()                       
@@ -93,6 +107,11 @@ public BubbleMainAPI(BubbleState fromparent) {
                         A_Bubble:XBeep(f,d or 250)
                     end
 
+                    function MilliToday()
+                        return A_Bubble.MilliToday
+                    end
+                    
+
             ", "BubbleMainAPICoreScript");
             } catch (Exception E) {
 #if BubbleDEBUG
@@ -103,7 +122,7 @@ public BubbleMainAPI(BubbleState fromparent) {
             }
         }
 
-	}
+    }
 
     class BubbleState {
         internal Lua state = new Lua();
@@ -373,6 +392,7 @@ public BubbleMainAPI(BubbleState fromparent) {
     }
 	
 }
+
 
 
 
