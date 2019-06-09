@@ -1,7 +1,7 @@
 // Lic:
 // BubbleSuperGlobal.cs
 // Bubble
-// version: 19.05.22
+// version: 19.06.09
 // Copyright (C)  Jeroen P. Broks
 // This software is provided 'as-is', without any express or implied
 // warranty.  In no event will the authors be held liable for any damages
@@ -19,6 +19,7 @@
 // EndLic
 
 
+
 #undef superglobcalldebug
 
 using System;
@@ -34,69 +35,84 @@ namespace Bubble {
         public bool strict = false;
 
         public string GetGlob(string v) {
-            if (qstr.Prefixed(v, "#")) throw new Exception("# not allowed in var calling!");
-            if (!globs.ContainsKey(v)) {
+            try {
+                if (qstr.Prefixed(v, "#")) throw new Exception("# not allowed in var calling!");
+                if (!globs.ContainsKey(v)) {
 #if superglobcalldebug
                 BubConsole.CSay($"Asked: {v}!");
                 foreach(string key in globs.Keys) {
                     BubConsole.WriteLine($"{key}\t = {globs[key]}",255,180,0);
                 }
 #endif
-                return "nil";
+                    return "nil";
+                }
+                return globs[v];
+            } catch (Exception e) {
+                SBubble.MyError(".NET API error", e.Message, $"Retrieving SuperGlobal.{v}");
+                return "**ERROR**";
             }
-            return globs[v];
         }
 
         public string GetType(string v) {
-            if (!types.ContainsKey(v)) {
-                if (strict) throw new Exception($"Undeclared variable in strict mode < {v}");
-                if (!globs.ContainsKey(v)) return "nil";
+            try {
+                if (!types.ContainsKey(v)) {
+                    if (strict) throw new Exception($"Undeclared variable in strict mode < {v}");
+                    if (!globs.ContainsKey(v)) return "nil";
+                    return "var";
+                }
+                return types[v];
+            } catch (Exception er) {
+                SBubble.MyError(".NET API error", er.Message, $"Type catching SuperGlobal.{v}");
                 return "var";
             }
-            return types[v];
         }
 
         public void DefGlob(string k, string v) {
-            if (qstr.Prefixed(k, "#")) {
-                switch (k) {
-                    case "#strict": strict = true; break;
-                    case "#int":
-                    case "#number":
-                        types[v] = "number";
-                        break;
-                    case "#var":
-                        types[v] = "var";
-                        break;
-                    case "#string":
-                        types[v] = "string";
-                        break;
-                    case "#boolean":
-                        types[v] = "boolean";
-                        break;
-                    case "#clearall":
-                        if (v == "DontSayMattressToMrLambert") CLEARALL();
-                        break;
-                    default:
-                        throw new Exception("False \"#\" instruction to SuperGlobal");
-                }
-                return;
-            }
-            if (strict && !types.ContainsKey(k)) throw new Exception($"Undeclared variable in strict mode > {k}");
-            switch (GetType(k)) {
-                case "string":
-                case "var":
-                    break;
-                case "number":
-                    try {
-                        Int64.Parse(v);
-                    } catch {
-                        throw new Exception("Apparently the number variable value was not a number (please note, only integers are accepted!)");
+            try {
+                if (qstr.Prefixed(k, "#")) {
+                    switch (k) {
+                        case "#strict": strict = true; break;
+                        case "#int":
+                        case "#number":
+                            types[v] = "number";
+                            break;
+                        case "#var":
+                            types[v] = "var";
+                            break;
+                        case "#string":
+                            types[v] = "string";
+                            break;
+                        case "#boolean":
+                            types[v] = "boolean";
+                            break;
+                        case "#clearall":
+                            if (v == "DontSayMattressToMrLambert") CLEARALL();
+                            break;
+                        default:
+                            throw new Exception("False \"#\" instruction to SuperGlobal");
                     }
-                    break;
+                    return;
+                }
+                if (strict && !types.ContainsKey(k)) throw new Exception($"Undeclared variable in strict mode > {k}");
+                switch (GetType(k)) {
+                    case "string":
+                    case "var":
+                        break;
+                    case "number":
+                        try {
+                            Int64.Parse(v);
+                        } catch {
+                            throw new Exception("Apparently the number variable value was not a number (please note, only integers are accepted!)");
+                        }
+                        break;
+                }
+                BubConsole.CSay($"Defined SuperGlobal: {k} = {v}");
+                globs[k] = v;
+            } catch (Exception e) {
+                SBubble.MyError(".NET API error", e.Message, $"SuperGlobal.{k} = {v}");
             }
-            BubConsole.CSay($"Defined SuperGlobal: {k} = {v}");
-            globs[k] = v;
         }
+            
 
         public void CLEARALL() {
             types.Clear();
@@ -136,5 +152,6 @@ namespace Bubble {
 
     }
 }
+
 
 
