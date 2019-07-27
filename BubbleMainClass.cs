@@ -53,6 +53,17 @@ namespace Bubble {
         private Lua bstate => Parent.state;
         private BubbleState Parent;
 
+        public void OpenURL(string url,bool ignoreifnotvalid=false) {
+            if (!OURI.IsValidUri(url)) {
+                if (ignoreifnotvalid)
+                    return;
+                else {
+                    SBubble.MyError($"OpenURL(\"{url}\"):", "Invalid URL", "");
+                }
+            }
+            OURI.OpenUri(url);
+        }
+
         public string NILScript => SBubble.NILScript;
 
         public long MilliToday {
@@ -70,6 +81,9 @@ namespace Bubble {
             }
         }
 
+        public string BubbleID(string key) => SBubble.IDDat(key);
+        
+
         public BubbleMainAPI(BubbleState fromparent) {
             Parent = fromparent;
             try {
@@ -77,8 +91,15 @@ namespace Bubble {
 
                     function StartNIL()                       
                        NIL = (loadstring or load)(A_Bubble.NILScript,'NIL')();
-                       if (not NIL) then BubbleCrash('NIL failed to load') end
+                       if (not NIL) then BubbleCrash('NIL failed to load') return end
+                       NIL.SayFuncs[#NIL.SayFuncs+1] = function(message)
+                           (CSay or print)('NIL says: '..message)
+                       end
                     end
+
+                    function OpenURL(url) A_Bubble:OpenURL(url) end
+
+                    function BubbleID(tag) return A_Bubble:BubbleID(tag) end
 
                     function QErTrace(Err)
                         return Err ..'\n\nTracebak:\n'..debug.traceback..'\n'
@@ -109,10 +130,9 @@ namespace Bubble {
 
                     function MilliToday()
                         return A_Bubble.MilliToday
-                    end
-                    
+                    end                                     
 
-            ", "BubbleMainAPICoreScript");
+            ", "BubbleMainAPICoreScript");               
             } catch (Exception E) {
 #if BubbleDEBUG
                 CrashHandler("Main Script Error", E.Message, E.StackTrace);
@@ -214,7 +234,7 @@ namespace Bubble {
     static class SBubble {
         static Dictionary<string, BubbleState> States = new Dictionary<string, BubbleState>();
         static public TJCRDIR JCR { get; private set; }
-        static string JCRFile = qstr.Left(MKL.MyExe, MKL.MyExe.Length - 4) + ".Bubble.jcr";
+        static public readonly string JCRFile = qstr.Left(MKL.MyExe, MKL.MyExe.Length - 4) + ".Bubble.jcr";
         static TGINI Identify;
         static public BubbleError MyError = null;
         static public string NILScript { get; private set; } = "error(\"'NIL.lua' was not properly loaded! Was it properly embedded in the VS project?\")\n";
@@ -309,6 +329,7 @@ namespace Bubble {
                 si(stateID);
             }
 #if NewStateDEBUG
+            DoNIL(stateID, $"#macro BUBBLE_State \"stateID\"");
             Debug.WriteLine("Script itself");
 #endif
             ns.Use(scriptfile);
