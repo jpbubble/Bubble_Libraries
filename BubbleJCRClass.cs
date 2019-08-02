@@ -68,6 +68,18 @@ namespace Bubble {
                        end
                 end
 
+                function JCR_GetLines(r,e)
+                         local str = JCR_GetString(r,e)
+                         local t = {}
+                         local i=1
+                         local sep = '\n'
+                         for str in string.gmatch(str, "+"\"([^ \"..sep..\"] +)\") do"+@"
+                             t[i] = str
+                             i = i + 1
+                         end
+                         return t
+                end
+
                 function JCR_EntryExists(i,n)
                     if (n) then 
                        return Bubble_JCR:EntryExists(n,i)

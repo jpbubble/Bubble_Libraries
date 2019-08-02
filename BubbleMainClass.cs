@@ -82,12 +82,21 @@ namespace Bubble {
         }
 
         public string BubbleID(string key) => SBubble.IDDat(key);
+
+        public void BubCrash(string crash,string track) {
+            SBubble.MyError("Script Run-Time Error!", crash, track);
+        }
         
 
         public BubbleMainAPI(BubbleState fromparent) {
             Parent = fromparent;
             try {
                 bstate.DoString(@"-- Init me ;)
+
+                    function BubbleError(error)
+                        A_Bubble:Crash(error,debug.traceback())
+                    end
+                        
 
                     function StartNIL()                       
                        NIL = (loadstring or load)(A_Bubble.NILScript,'NIL')();
