@@ -72,14 +72,26 @@ namespace Bubble {
                 function JCR_GetLines(r,e)
                          local str = JCR_GetString(r,e)
                          local t = {}
-                         local i=1
-                         local sep = '\n'
-                         for str in string.gmatch(str, "+"\"([^ \"..sep..\"] +)\") do"+@"
-                             t[i] = str
-                             i = i + 1
+                         local line=1
+                         local skip=0
+                         for pos=1,#str do -- Dirty slow method, but at least this should work!
+							 -- print(pos,#str,' / ',line,str:sub(pos,pos))
+                             t[line] = t[line] or ''
+                             if skip > 0 then
+                                  skip = skip - 1
+                             elseif str:sub(pos, pos + 1) == '\r\n' or str:sub(pos, pos + 1) == '\n\r' then
+                                          skip = 1
+                                line = line + 1
+                             elseif str:sub(pos, pos) == '\r' or str:sub(pos, pos) == '\n' then
+                                      line = line + 1
+                             else
+                                t[line] = t[line]..str:sub(pos, pos)
+                             end
                          end
                          return t
                 end
+
+
 
                 function JCR_EntryExists(i,n)
                     if (n) then 

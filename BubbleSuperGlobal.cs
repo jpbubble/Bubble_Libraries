@@ -33,6 +33,9 @@ namespace Bubble {
         static Dictionary<string, string> globs = new Dictionary<string, string>();
         static Dictionary<string, string> types = new Dictionary<string, string>();
         public bool strict = false;
+        readonly string statename;
+
+        string LuaTraceBack => SBubble.TraceLua(statename);
 
         public string GetGlob(string v) {
             try {
@@ -144,7 +147,8 @@ namespace Bubble {
         private BubbleSuperGlobal(string vm) {
             var s = SBubble.State(vm).state;
             s["Bubble_SuperGlobal"] = this;
-            s.DoString(QuickStream.StringFromEmbed("SuperGlobal.lua"), "SuperGlobal Header");            
+            s.DoString(QuickStream.StringFromEmbed("SuperGlobal.lua"), "SuperGlobal Header");
+            statename = vm;
         }
 
         static public void Init(string vm) => new BubbleSuperGlobal(vm);
