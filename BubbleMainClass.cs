@@ -6,8 +6,9 @@
 // Mozilla Public License, v. 2.0. If a copy of the MPL was not
 // distributed with this file, You can obtain one at
 // http://mozilla.org/MPL/2.0/.
-// Version: 19.08.02
+// Version: 19.08.05
 // EndLic
+
 
 
 
@@ -45,10 +46,19 @@ namespace Bubble {
     // BUBBLE, and it should only be used that way!
     internal class BubbleMainAPI {
 
+        public static string FailMessage = "";
+        public string Failure {
+            get => FailMessage;
+            set { FailMessage = value; }
+        }
+
         public string Version => MKL.Newest;
         public void ForeColor(byte b) => Console.ForegroundColor = (ConsoleColor)b;
         public void BackColor(byte b) => Console.BackgroundColor = (ConsoleColor)b;
-        public void CrashHandler(string ct, string message, string trace) => Parent.MyError(ct, message, trace);
+        public void CrashHandler(string ct, string message, string trace) {
+            SBubble.MyError(ct, message, trace);
+            //Parent.MyError(ct, message, trace);
+        }
         public void Beep() => Console.Beep();
         public void XBeep(int f, int d) => Console.Beep(f, d);
         private Lua bstate => Parent.state;
@@ -127,8 +137,10 @@ namespace Bubble {
                     end
 
                     function BubbleCrash(x)
+                        if BubbleHasCrashed then print('Dupe Crash call: '..x) return end
+                        BubbleHasCrashed = true
                         if type(x)=='string' then
-                        A_Bubble:CrashHandler('Run-Time',x,debug.traceback())
+                           A_Bubble:CrashHandler('Run-Time',x,debug.traceback())
                         end
                         -- TODO: Getting to work out .NET exceptions, as they are just thrown in the .NET type.
                     end
@@ -170,38 +182,47 @@ namespace Bubble {
         }
 
         public object Use(string fuse) {
-            if (JCR.Exists(fuse)) {
-                try {                    
-                    switch (qstr.ExtractExt(fuse).ToLower()) {
-                        case "lua": {
-                                var script = JCR.LoadString(fuse);
-                                script = PreprocessLua(script);
-                                var res = state.DoString(script, fuse);
-                                return res;
-                            }
-                        case "nil": {
-                                var l = $"local ok, ret = pcall( NIL.Use,'{fuse}')\nif not(ok) then BubbleCrash(ret) else return ret end";
-                                Debug.Print(l);
-                                var ret = state.DoString(l); //--state.DoString($"return NIL.LoadString([[{script}]])()");
-                                Debug.Print("Done");
-                                return ret;
-                            }
-                        default:
-                            MyError("Bubble", $"I don't know how script {fuse} works", "");
-                            return null; // Will never be called, but C# can't tell!
-                    }
-                    
-                } catch (Exception e) {
+            try {
+                if (JCR.Exists(fuse)) {
+                    try {
+                        switch (qstr.ExtractExt(fuse).ToLower()) {
+                            case "lua": {
+                                    var script = JCR.LoadString(fuse);
+                                    script = PreprocessLua(script);
+                                    var res = state.DoString(script, fuse);
+                                    return res;
+                                }
+                            case "nil": {
+                                    var l = $"local ok, ret = pcall( NIL.Use,'{fuse}')\nif not ok then A_Bubble.Failure=tostring(ret) end"; //if not(ok) then BubbleCrash(ret) else return ret end";
+                                    Debug.Print(l);
+                                    var ret = state.DoString(l); //--state.DoString($"return NIL.LoadString([[{script}]])()");
+                                    if (BubbleMainAPI.FailMessage != "") {
+                                        MyError("Use error", BubbleMainAPI.FailMessage, $"Using: {fuse}");
+                                        return "FOUT!";
+                                    }
+                                    Debug.Print("Done");
+                                    return ret;
+                                }
+                            default:
+                                MyError("Bubble", $"I don't know how script {fuse} works", "");
+                                return null; // Will never be called, but C# can't tell!
+                        }
+
+                    } catch (Exception e) {
 #if BubbleDEBUG
-                    MyError("Use Compile", e.Message, e.StackTrace);
+                        MyError("Use Compile", e.Message, e.StackTrace);
 #else
                     MyError("Use Compile", e.Message, "");
 #endif
-                    return null;
+                        return null;
+                    }
                 }
+                MyError("Use Error", $"I was unable to locate '{fuse}' in Use request", "");
+                return null;
+            } catch (Exception ValDood) {
+                MyError("Bubble Error", ValDood.Message, $"Use(\"{fuse}\")");
+                return null;
             }
-            MyError("Use Error",$"I was unable to locate '{fuse}' in Use request","");
-            return null;
         }
 
         static int DSI = 0;
@@ -327,22 +348,26 @@ namespace Bubble {
         }
 
         static public void NewState(string stateID,string scriptfile) {
-            var ns = new BubbleState(JCR, MyError);
+            try {
+                var ns = new BubbleState(JCR, MyError);
 #if NewStateDEBUG
-            Debug.WriteLine($"Create {stateID} -- file {scriptfile} ");
+                Debug.WriteLine($"Create {stateID} -- file {scriptfile} ");
 #endif
-            States[stateID.ToUpper()] = ns;
-            foreach (StateInit si in AlwaysInit) {
+                States[stateID.ToUpper()] = ns;
+                foreach (StateInit si in AlwaysInit) {
 #if NewStateDEBUG
-                Debug.WriteLine("Classimp");
+                    Debug.WriteLine("Classimp");
 #endif
-                si(stateID);
+                    si(stateID);
+                }
+#if NewStateDEBUG
+                DoNIL(stateID, $"#macro BUBBLE_State \"stateID\"");
+                Debug.WriteLine("Script itself");
+#endif
+                ns.Use(scriptfile);
+            } catch (Exception Klotezooi) {
+                MyError($"Creating state \"{stateID}\" from file \"{scriptfile}\" failed!",Klotezooi.Message,"");
             }
-#if NewStateDEBUG
-            DoNIL(stateID, $"#macro BUBBLE_State \"stateID\"");
-            Debug.WriteLine("Script itself");
-#endif
-            ns.Use(scriptfile);
         }
 
         static public BubbleState State(string stateId) {
@@ -423,6 +448,7 @@ namespace Bubble {
     }
 	
 }
+
 
 
 
