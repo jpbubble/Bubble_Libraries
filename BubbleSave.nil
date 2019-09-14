@@ -18,12 +18,9 @@
 // 3. This notice may not be removed or altered from any source distribution.
 // End License Information
 
-
-
-
 // Bubble Save Class Glue script
 
-class ClassBubSave
+group BubSave
 
 	get string WorkDir
 		return Bubble_Save.WorkDir;
@@ -48,14 +45,35 @@ class ClassBubSave
 	string LoadString(string file,dontcrash)
 		return Bubble_Save:LoadString(file,dontcrash==true)
 	end
-
+	
+	table LoadLines(string file,dontcrash)
+		string script
+		//CSay("Test-PRE")
+		script = Bubble_Save:LoadLines(file, dontcrash==true)
+		//CSay("Test-POST")
+		#pure
+		local result = assert( (loadstring or load)(script))
+		return result()
+		#endpure
+	end
+	
+	bool SaveXtra(string XModule)
+		return Bubble_Save:SaveXtraLoaded(XModule)
+	end
+	
+	bool LoadXtra(string XModule)
+		return Bubble_Save:LoadXtraLoaded(XModule)
+	end
 
 	table StartJCRSave(string argfile)
+		table jcrxtra
 		table jcrmap
 		table jcrfake
 		table jcrmeta
+		table jcrpure
 		string file		
 		bool hashed = true
+		bool serial
 		file = argfile	
 		jcrmeta["__newindex"] = void(tb,string key, value)
 			if key=="" then 
@@ -65,21 +83,43 @@ class ClassBubSave
 				jcrmap[key] = "--#SuperGlobal#--\n"..Bubble_SuperGlobal:Serialize()
 				return
 			end
+			if key:upper()=="XTRA"
+				assert(type(value)=="table" and value.CMD and value.PARA,"XTRA requires a table with the fields CMD and PARA")
+				jcrxtra[value.CMD]=value.PARA
+				return
+			end
 			if key:upper()=="HASH" or key:upper()=="HASHED"
 				hashed = value!=nil and value!=false
+				return
 			end
-			if key:upper()=="BUBBLEID"
-				error("BUBBLEID is reserved")
+			if key:upper()=="BUBBLEID" or key:upper()=="PURE"
+				error(key.." is reserved")
 			end
 			if key:upper()=="CLOSE"
 				Bubble_Save:JCRStartSave()
+				jcrmap.PURE = NIL.LuaSerialize("local pure",jcrpure).."\n\nreturn pure"
 				for k,v in pairs(jcrmap)
 					Bubble_Save:JCRSave(k,v)
+				end
+				for k,v in pairs(jcrxtra)
+					Bubble_Save:JCRSaveXtra(k,v)
 				end
 				Bubble_Save:JCREndSave(file,hashed)
 				return
 			end
-			jcrmap[key]=NIL.serialize("local saved = "..key,value).."\nreturn saved"
+			if key:upper()=="SERIAL"
+				serial = value!=nil and value!=false;
+				return
+			end
+			if serial
+				jcrmap[key]=NIL.LuaSerialize("local saved_"..key,value).."\nreturn saved_"..key
+				jcrpure[key:upper()]=false
+			else
+				// Should ONLY be used on alternate scripts
+				jcrmap[key]=value
+				jcrpure[key:upper()]=true
+			end
+			
 		end
 		jcrmeta["__index"] = void(tb,key)
 			error("This object is write-only!")
@@ -88,17 +128,24 @@ class ClassBubSave
 		return jcrfake
 	end
 	
-	table LoadFromJCR(string argfile, mustbehashed)
+	table LoadFromJCR(string argfile, mustbehashed, XTRA)
 		table jcrmap
 		table jcrfake
 		table jcrmeta
+		table jcrpure
+		
 		
 		jcrmeta["__index"] = var(tb,string key)
+			key = key:upper()
+			assert(jcrmap[key],"Savegame has no entry "..key.."\n\n"..NIL.LuaSerialize("JCR entries",jcrmap))
+			if jcrpure[key] then
+				return jcrmap[key]
+			end			
 			delegate f
 			#pure
 			f = assert((loadstring or load)(jcrmap[key]),argfile.."::"..key)
 			#endpure
-			return f
+			return f()
 		end
 		
 		jcrmeta["__newindex"] = void()
@@ -110,6 +157,28 @@ class ClassBubSave
 		end
 		
 		Bubble_Save:JCRStartLoad(argfile,mustbehashed==true)
+		if type(XTRA)=="table"			
+			for i,ixtra in ipairs(XTRA)
+				with ixtra
+					bool success
+					assert($CMD,string.format("Instruction #%d does not have a CMD field!",i))
+					assert(Bubble_Save:LoadXtraLoaded($CMD),string.format("Instruction #%d wants to use XLoad module '%s', which is not present!",i,$CMD))
+					success = Bubble_Save:JCRXLoad($CMD,$PARA or "")
+					if not $MAYFAIL
+						if not success then 
+							Bubble_Save:JCRLoadClose();
+							return nil ;
+						end
+					end
+				end
+			end
+		end		
+		#pure
+		do
+		  local getpure = Bubble_Save:JCRGetPure()
+		  jcrpure = (loadstring or load)(getpure)()
+		end
+		#endpure  
 		repeat
 			var k
 			string v
@@ -129,15 +198,18 @@ class ClassBubSave
 		Bubble_Save:JCRLoadClose();
 		
 		setmetatable(jcrfake,jcrmeta)
+		//jcrpure = jcrfake.PURE
 		return jcrfake
 	end
 end
 
-
-#accept BubSave
-#pure
-BubSave = ClassBubSave.NEW()
-#endpure
+// Old code...
+// "group" was not implemented in NIL when the first version of this
+// script was written (not to mention that .NEW() is deprecated by now too!
+//#accept BubSave
+//#pure
+//BubSave = ClassBubSave.NEW()
+//#endpure
 
 
 
