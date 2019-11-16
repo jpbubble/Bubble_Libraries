@@ -1,7 +1,7 @@
 // Lic:
 // BubbleSave.cs
 // Bubble
-// version: 19.05.22
+// version: 19.11.16
 // Copyright (C)  Jeroen P. Broks
 // This software is provided 'as-is', without any express or implied
 // warranty.  In no event will the authors be held liable for any damages
@@ -282,6 +282,7 @@ namespace Bubble {
     }
 #endregion
 }
+
 
 
 
