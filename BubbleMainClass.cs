@@ -8,18 +8,9 @@
 // http://mozilla.org/MPL/2.0/.
 // Version: 19.08.05
 // EndLic
-
-
-
-
-
-
-
-
-
 #define BubbleDEBUG
 
-#define NewStateDEBUG
+#undef NewStateDEBUG
 
 using System;
 using System.IO;
@@ -320,6 +311,7 @@ namespace Bubble {
                     ICrash("The resource JCR does not appear to be a valid BUBBLE application");
                 if (Identify.C("BubbleEngine") != reqengine)
                     ICrash($"Wrong engine! The resource JCR appears to be for the BUBBLE {Identify.C("BubbleEngine")} engine, and this is the BUBBLE {reqengine} engine");
+                Bubble_Swap.StaticClear();
             } catch (Exception E) {
                 ICrash($".NET says {E.Message}\nJCR6 says {JCR6.JERROR}\nAnyway, something's not right here!");
             }
