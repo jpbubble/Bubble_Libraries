@@ -83,6 +83,27 @@ namespace Bubble {
             }
         }
 
+        public static string GameHomeDir => Bubble_Save.SWorkDir;
+        static TGINI _GlobConfig = null;
+        static TGINI GlobConfig {
+            get {
+                var d = $"{GameHomeDir}/GlobalConfig.GINI";
+                if (_GlobConfig == null) {
+                    if (!File.Exists(d)) QuickStream.SaveString(d, "[rem]\nNothing to see here!");
+                    _GlobConfig = GINI.ReadFromFile(d);
+                }
+                return _GlobConfig;
+            }
+        }
+
+        public void DefConfig(string k,string b) {
+            GlobConfig.D(k, b);
+            GlobConfig.SaveSource($"{GameHomeDir}/GlobalConfig.GINI");
+        }
+        public string GetConfig(string k) => GlobConfig.C(k);
+        public string H_MD5(string q) => qstr.md5(q);
+
+
         public string BubbleID(string key) => SBubble.IDDat(key);
 
         public void BubCrash(string crash,string track) {
@@ -143,7 +164,19 @@ namespace Bubble {
 
                     function MilliToday()
                         return A_Bubble.MilliToday
-                    end                                     
+                    end 
+    
+                    function GameHomeDir()
+                         return A_Bubble.GameHomeDir
+                    end
+
+                    BubbleConfig = setmetatable({},{
+                            __index    = function(s,k) return A_Bubble:GetConfig(k) end,
+                            __newindex = function(s,k,v)      A_Bubble:DefConfig(k,v) end
+                    })
+
+                    function HashMD5(s) return A_Bubble:H_MD5(s) end
+
 
             ", "BubbleMainAPICoreScript");               
             } catch (Exception E) {

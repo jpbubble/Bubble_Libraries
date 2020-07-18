@@ -18,11 +18,15 @@
 // 3. This notice may not be removed or altered from any source distribution.
 // EndLic
 
+#define NoCrash
+
 using System;
 using System.IO;
+using System.Text;
 using System.Collections.Generic;
 using TrickyUnits;
 using UseJCR6;
+
 
 namespace Bubble {
 
@@ -131,9 +135,13 @@ namespace Bubble {
         #region Save
         SortedDictionary<string, string> JCRSaved = null;
         SortedDictionary<string, string> JCRSavedXtra = null;
+        static int SaveStarted = 0;
+        static int SaveEnded = 0;
         public void JCRStartSave() {
             JCRSaved = new SortedDictionary<string, string>();
             JCRSavedXtra = new SortedDictionary<string, string>();
+            SaveStarted++;
+            BubConsole.WriteLine($"Save Started. Started:{SaveStarted} Ended:{SaveEnded}");
         }
 
         public void JCRSave(string key,string value) {
@@ -143,6 +151,7 @@ namespace Bubble {
                 SBubble.MyError($"JCRSave(\"{key}\",<value>):", "Duplicate definition", "");
             else
                 JCRSaved[key.ToUpper()] = value;
+            BubConsole.WriteLine($"Gonna Save: {key}");
         }
 
         public void JCRSaveXtra(string key, string value) {
@@ -154,6 +163,7 @@ namespace Bubble {
                 SBubble.MyError($"JCRSave(\"{key}\",<value>):", $"The engine you used has no SaveXtra module called '{key}'", "");
             else
                 JCRSavedXtra[key.ToUpper()] = value;
+            BubConsole.WriteLine($"Gonna Save Xtra: {key}");
         }
 
 
@@ -163,12 +173,14 @@ namespace Bubble {
             var s = file.Split('/'); foreach (string dps in s) if (dps == "..") throw new Exception("I don't accept file names with .. references in the path!");
             var hashtable = new Dictionary<string, string>();
             var storage = "lzma";
+            TJCRCreate j=null;
             Directory.CreateDirectory(qstr.ExtractDir(file));
             if (SBubble.IDDat("CStorage") != "") storage = SBubble.IDDat("CStorage");
             if (JCRSaved == null)
                 SBubble.MyError("Sigh!", "Hack attempt on the JCR Save system?\nShame on you!", "");
+            BubConsole.WriteLine("Ending save");
             try {
-                var j = new TJCRCreate(file, storage);
+                 j = new TJCRCreate(file, storage);
                 j.AddString($"[rem]\nJust some header stuff to verify this is a saved data file for a Bubble project\n\n[var]\nENGINE=BUBBLE\nBUBBLE={SBubble.IDDat("BubbleEngine")}\nID={SBubble.ID}\n", "BUBBLEID", storage);
                 foreach (string ename in JCRSaved.Keys) {
                     var str = JCRSaved[ename];
@@ -180,7 +192,22 @@ namespace Bubble {
                 }
                 if (hashed) j.NewStringMap(hashtable, "HASHES", storage);
                 j.Close();
+                SaveEnded++;
+                BubConsole.WriteLine($"Saved Ended -- Started:{SaveStarted}; Ended:{SaveEnded}");
             } catch (Exception e) {
+#if NoCrash
+                var err = new StringBuilder("Writing the savegame file failed!\n\n");
+                if (JCR6.JERROR != "" && JCR6.JERROR.ToUpper() != "OK") {
+                    err.Append($"JCR6 Error during saving: {JCR6.JERROR}\nResulted to .NET Crash:\n\n{e.Message}");
+                } else {
+                    System.Diagnostics.Debug.WriteLine($"ERROR: {e.Message}\n\nStack Trace:\n{e.StackTrace}");
+                    err.Append($".NET error occured: {e.Message}\n");
+#if DEBUG
+                    err.Append($".NET StackTrace\n{e.StackTrace}\n");
+#endif
+                    err.Append("\nPlease note that due to this issue it's possible the savegame file has been damaged!");
+                    Confirm.Annoy($"{err}");
+#else
                 if (JCR6.JERROR != "" && JCR6.JERROR.ToUpper() != "OK") {
                     SBubble.MyError("JCR6 Error during saving", JCR6.JERROR, $"Resulted to .NET Crash:\n\n{e.Message}");
                 } else {
@@ -190,8 +217,12 @@ namespace Bubble {
 #else
                     SBubble.MyError(".NET Error during saving", e.Message, "");
 #endif
+#endif
                 }
             } finally {
+#if NoCrash
+                if (j != null) j.Close();
+#endif
                 JCRSaved = null;
             }
         }
